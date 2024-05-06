@@ -1,0 +1,229 @@
+import pygame
+import sys
+import math
+import matplotlib.pyplot as plt
+from UAVcondition import density, lCoef, dCoef
+from cloudChange import image_path, cloud_coverage_values_scaled
+
+# User Inputs
+width_meters = 65000
+height_meters = 65000
+speed = 12
+tick_speed = 60
+live_plot_option = "no"
+
+if live_plot_option == "yes":
+    live_plot = True
+else:
+    live_plot = False
+
+# Start time and end time (from minute 0 to minute 1440)
+start = (int(input("Start(minutes): ")))
+end = 1440
+
+# Initialize Pygame
+pygame.init()
+
+# Set up the window
+window_size = (512, 512)
+window = pygame.display.set_mode(window_size)
+pygame.display.set_caption("Moving Square")
+
+# Load background image
+background_image = pygame.image.load(image_path).convert()
+
+# Set up colors
+RED = (255, 0, 0)
+WHITE = (255, 255, 255)
+
+# Set up square properties
+square_size = 10
+square_x = 0  # Starting from the left center
+square_y = (window_size[1] - square_size) // 2
+# Converting meters per second to pixels per minute
+speed_x = speed * 512 / width_meters * 60
+speed_y = speed * 512 / height_meters * 60
+x_velocity = speed_x # Initial movement to the right
+y_velocity = 0
+
+# Flags to track whether conditions have been met
+x_100_flag = False
+y_100_flag = False
+x_200_flag = False
+
+# Store previous square positions
+trail = []
+
+# Time variables
+start_time = pygame.time.get_ticks()
+
+# Font settings
+font = pygame.font.Font(None, 24)
+
+# Initialize lists to store data
+solarPower = [0] * (end - start)
+powerIn = [0] * (end - start)
+powerOut = [0] * (end - start)
+battery = [1275]  # Initial battery level
+
+# UAV constants
+mass = 18.2
+area = 2.875
+sEff = 0.2
+pEff = 0.72
+oswald = 0.85
+span = 8
+passivePower = 10
+
+# Activate interactive mode if live plotting is enabled
+if live_plot:
+    plt.ion()
+
+    # Create subplots for live updates
+    fig, axs = plt.subplots(3, 1)
+
+# Main game loop
+running = True
+for i in range(start, end):
+    # Handle events
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+        # # Check conditions for changing direction
+        # if square_x >= 10 and not x_100_flag:
+        #     x_velocity = 0
+        #     y_velocity = -speed_y
+        #     x_100_flag = True
+        # elif square_y <= 125 and not y_100_flag:
+        #     x_velocity = speed_x
+        #     y_velocity = 0
+        #     y_100_flag = True
+        # elif square_x >= 400 and not x_200_flag:
+        #     x_velocity = 0
+        #     y_velocity = speed_y
+        #     x_200_flag = True
+        # elif square_y >= 252:
+        #     x_velocity = speed_x
+        #     y_velocity = 0
+
+        # Uncomment line 110-123 and comment line 93-108 to manually control the dot's movement with arrow keys
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_LEFT:
+                x_velocity = -speed_x
+                y_velocity = 0
+            elif event.key == pygame.K_RIGHT:
+                x_velocity = speed_x
+                y_velocity = 0
+            elif event.key == pygame.K_UP:
+                x_velocity = 0
+                y_velocity = -speed_y
+            elif event.key == pygame.K_DOWN:
+                x_velocity = 0
+                y_velocity = speed_y
+
+    # Update square position
+    square_x += x_velocity
+    square_y += y_velocity
+
+    # Check if the square has reached the end of the window
+    if square_x <= 0 or square_x >= window_size[0] - square_size:
+        break
+
+    # Add current square position to trail
+    trail.append((square_x, square_y))
+
+    # Draw the background image
+    window.blit(background_image, (0, 0))
+
+    # Draw the trail
+    for pos in trail:
+        pygame.draw.rect(window, RED, (pos[0], pos[1], square_size, square_size))
+
+    # Draw the square
+    pygame.draw.rect(window, RED, (square_x, square_y, square_size, square_size))
+
+    # Display coordinates
+    text = font.render(f"({square_x}, {square_y})", True, WHITE)
+    window.blit(text, (10, 10))
+
+    from solarIrradiance import solarPower
+
+    # For constant solar power
+    # solarPower = [1100] * 1440
+
+    # Calculate powerIn based on the cloud coverage at the square's coordinates
+    if 0 <= abs(square_x) < 512 and 0 <= abs(square_y) < 512:
+        cloud_value = cloud_coverage_values_scaled[int(abs(square_y))][int(abs(square_x))]
+        powerIn[i - start] = cloud_value * solarPower[i] * sEff * area / 60
+
+    # Calculate drag force
+    fDrag = 0.5 * density * dCoef * area * speed ** 2
+
+    iDrag = (mass * 9.81) ** 2 / (0.5 * density * speed ** 2 * math.pi * span ** 2 * oswald)
+
+    # Calculate power consumption
+    powerOut[i - start] = ((fDrag + iDrag) / pEff) * speed / 60
+
+    # Update battery status
+    battery_level = battery[-1] + powerIn[i - start] - powerOut[i - start] - (passivePower / 60)
+
+    # Ensure battery level stays within bounds
+    battery_level = max(0, min(battery_level, 1275))
+
+    # Check if battery is empty
+    if battery_level <= 0:
+        break
+
+    battery.append(battery_level)
+
+    # Plot live values if enabled
+    if live_plot:
+        axs[0].clear()
+        axs[0].plot(range(start, i + 1), powerIn[:i - start + 1], label='Power In')
+        axs[0].set_xlabel('Time(seconds)')
+        axs[0].set_ylabel('Power In(W)')
+        axs[0].set_title('Power In')
+        axs[0].legend()
+
+        axs[1].clear()
+        axs[1].plot(range(start, i + 1), powerOut[:i - start + 1], label='Power Out')
+        axs[1].set_xlabel('Time(minutes)')
+        axs[1].set_ylabel('Power Out(W)')
+        axs[1].set_title('Power Out')
+        axs[1].legend()
+
+        axs[2].clear()
+        axs[2].plot(range(start, i + 2), battery, label='Battery Life')
+        axs[2].set_xlabel('Time(minutes)')
+        axs[2].set_ylabel('Battery(Wh)')
+        axs[2].set_title('Battery Life')
+        axs[2].legend()
+
+        fig.tight_layout()
+        fig.canvas.draw()
+        fig.canvas.flush_events()
+
+    # Update the display
+    pygame.display.flip()
+
+    # Limit frames per second
+    pygame.time.Clock().tick(tick_speed)
+
+# Deactivate interactive mode if enabled
+if live_plot:
+    plt.ioff()
+
+# Calculate distance traveled
+end_time = pygame.time.get_ticks()
+distance_traveled = speed * ((i - start) * 60)
+
+# Display distance traveled
+print("Distance traveled by the square:", distance_traveled, "meters")
+
+# Display final battery level
+print("Final battery level:", battery[-1], "mAh")
+
+# Quit Pygame
+pygame.quit()
+sys.exit()

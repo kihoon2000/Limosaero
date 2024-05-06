@@ -1,0 +1,66 @@
+import cv2
+import numpy as np
+
+def convert_transparent_to_black(image):
+    # Split the image into its channels
+    b, g, r, a = cv2.split(image)
+
+    # Create a mask for transparent pixels (where alpha channel is 0)
+    mask = (a == 0)
+
+    # Convert transparent pixels to black
+    b[mask] = 0
+    g[mask] = 0
+    r[mask] = 0
+
+    # Merge the channels back into an image
+    image = cv2.merge([b, g, r, a])
+
+    return image
+
+def calculate_cloud_coverage(image_path):
+    # Read the image with alpha channel (RGBA)
+    image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+
+    # Convert transparent pixels to black
+    image = convert_transparent_to_black(image)
+
+    # Get the dimensions of the image
+    height, width, _ = image.shape
+    area_dimension = (width, height)
+
+    # Convert the image to grayscale
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    # Define black and specified color values
+    black = 0
+    specified_color = 142
+
+    # Calculate cloud coverage values ranging from 0 to 1
+    cloud_coverage_values_normalized = np.where(gray_image == black, 0,
+                                                 np.where(gray_image == specified_color, 1,
+                                                          (gray_image - black) / (specified_color - black)))
+
+    # Calculate cloud coverage values ranging from 1 to 0.30
+    cloud_coverage_values_scaled = np.where(gray_image == black, 1,
+                                             np.where(gray_image == specified_color, 0.30,
+                                                      1 - (gray_image - black) / (specified_color - black) * (1 - 0.31)))
+
+    # Calculate the overall cloud coverage percentage
+    overall_cloud_coverage = np.mean(cloud_coverage_values_normalized)
+
+    return cloud_coverage_values_scaled, overall_cloud_coverage, cloud_coverage_values_normalized, area_dimension
+
+# Define the path to the image
+image_path = 'C:/Users/kihoo/OneDrive/Desktop/cloud/171 (11).png'
+
+# Calculate cloud coverage
+cloud_coverage_values_scaled, overall_cloud_coverage, cloud_coverage_values_normalized, area_dimension = calculate_cloud_coverage(image_path)
+
+# Output the grid of cloud coverage values ranging from 1 to 0.30
+print("Grid of Cloud Coverage Values (Scaled):")
+print(cloud_coverage_values_scaled)
+
+# Output the overall cloud coverage percentage ranging from 0 to 1
+print("\nOverall Cloud Coverage Percentage (Normalized):", overall_cloud_coverage)
+

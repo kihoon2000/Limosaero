@@ -1,0 +1,108 @@
+import math
+import matplotlib.pyplot as plt
+
+# Constants
+TSI = 1368
+tilt = 23.45
+
+# User Inputs
+latitude = 55.4
+year = 2024
+month = "dec"
+date = 21
+
+# Simplified leap year categorization
+isLeapYear = False
+
+if year % 4 == 0:
+    isLeapYear = True
+
+# Assign day value from 0 to 365
+if month == "january" or month == "jan" or month == "1":
+    day = date
+if month == "february" or month == "feb" or month == "2":
+    day = 31 + date
+if month == "march" or month == "mar" or month == "3":
+    day = 59 + date
+if month == "april" or month == "apr" or month == "4":
+    day = 90 + date
+if month == "may" or month == "5":
+    day = 120 + date
+if month == "june" or month == "jun" or month == "6":
+    day = 151 + date
+if month == "july" or month == "jul" or month == "7":
+    day = 181 + date
+if month == "august" or month == "aug" or month == "8":
+    day = 212 + date
+if month == "september" or month == "sep" or month == "9":
+    day = 243 + date
+if month == "october" or month == "oct" or month == "10":
+    day = 273 + date
+if month == "november" or month == "nov" or month == "11":
+    day = 304 + date
+if month == "december" or month == "dec" or month == "12":
+    day = 334 + date
+
+if isLeapYear == True and month != "january" and month != "february":
+    day += 1
+
+if isLeapYear == False:
+    fracDeg = (360/365) * (day - 81)
+else:
+    fracDeg = (360/366) * (day - 82)
+
+fracRad = math.radians(fracDeg)
+
+# Finding the declination angle
+declination = tilt * math.sin(fracRad)
+
+angle0 = latitude - declination
+angle1 = math.radians(angle0)
+
+# Peak solar irradiance in a given day
+TSI1 = math.cos(angle1) * TSI
+print("Peak Solar Irradiance: " + str(round(TSI1, 2)))
+
+# Equation of time
+EoT = 9.87 * math.sin(2 * fracRad) - 7.53 * math.cos(fracRad) - 1.5 * math.sin(fracRad)
+
+solarNoon = (720 - EoT) / 1440
+
+hourAngle = math.degrees(math.acos(-math.tan(math.radians(latitude) * math.tan(math.radians(declination)))))
+
+sunrise = solarNoon - hourAngle / 360
+sunset = solarNoon + hourAngle / 360
+
+# Convert minutes (375) to hour & minutes (06:15)
+hour0 = int(solarNoon * 24)
+hour1 = int(sunrise * 24)
+hour2 = int(sunset * 24)
+
+minute0 = int((solarNoon % 1) * 60)
+minute1 = int((sunrise % 1) * 60)
+minute2 = int((sunset % 1) * 60)
+
+noon1 = solarNoon * 24
+sunrise1 = sunrise * 24
+sunset1 = sunset * 24
+
+print("Noon " + str(hour0) + ":" + str(minute0))
+print("Sunrise " + str(hour1) + ":" + str(minute1))
+print("Sunset " + str(hour2) + ":" + str(minute2))
+
+# Generate the time array for 24 hours in minutes
+time = [i / 60 for i in range(24 * 60)]
+
+# Calculate the period of the sine wave for the entire day
+period = math.pi / (sunset1 - sunrise1)
+
+# Calculate solar power for the entire day
+solarPower = [TSI1 * math.sin(period * (t - sunrise1)) if sunrise1 <= t <= sunset1 else 0 for t in time]
+
+# Plot the solar power
+# plt.plot(time, solarPower)
+# plt.xlabel('Time (hours)')
+# plt.ylabel('Solar Power (W/m^2)')
+# plt.title('Solar Power vs Time')
+# plt.grid(True)
+# plt.show()

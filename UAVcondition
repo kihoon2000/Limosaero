@@ -1,0 +1,15 @@
+# Constants for density
+p0 = 101325
+T0 = 288.15
+g = 9.80665
+L = 0.0065
+R = 8.31446
+M = 0.0289652
+altitude = 2000
+
+density = (p0 * M / (R * T0)) * (1 - (L * altitude / T0)) ** ((g * M / (R * L)) - 1)
+
+# Variable coefficients
+lCoef = 0.4797
+dCoef = 0.00661 + 0.0287 * lCoef ** 2
+
